@@ -1,0 +1,19 @@
+{
+  "id": "paperclip-status",
+  "name": "Paperclip Status",
+  "description": "Bounded read-only company snapshot; owner/private admission required",
+  "categories": ["developer-tools"],
+  "contracts": {"tools": ["paperclip_status"]},
+  "activation": {"onStartup": true},
+  "configSchema": {
+    "type": "object", "additionalProperties": false,
+    "required": ["baseUrl", "companyId", "credentialProvider"],
+    "properties": {
+      "baseUrl": {"type": "string"},
+      "companyId": {"type": "string", "format": "uuid"},
+      "credentialProvider": {"type": "string", "minLength": 1},
+      "allowLoopbackDevelopment": {"type": "boolean", "default": false},
+      "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}
+    }
+  }
+}
