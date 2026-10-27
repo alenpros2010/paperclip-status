@@ -1,0 +1,12 @@
+{
+  "name": "@local/openclaw-paperclip-status",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": ["dist", "openclaw.plugin.json", "README.md"],
+  "scripts": {"build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit", "test": "npm run build && node --test test/*.test.mjs"},
+  "dependencies": {"typebox": "1.3.34"},
+  "devDependencies": {"typescript": "5.9.3", "@types/node": "24.10.1"},
+  "peerDependencies": {"openclaw": "2026.10.6"},
+  "openclaw": {"extensions": ["./dist/index.js"], "compat": {"pluginApi": "2026.10.6", "minGatewayVersion": "2026.10.6"}, "build": {"openclawVersion": "2026.10.6", "pluginSdkVersion": "2026.10.6"}}
+}
