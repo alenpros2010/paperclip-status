@@ -114,10 +114,24 @@ test('stream bytes bounded before JSON parse', async () => { await server((req,r
 test('malformed JSON and content type fail safe', async () => { for (const body of ['broken','<html>']) await server((req,res) => { if (body==='broken') res.setHeader('Content-Type','application/json'); res.end(body); }, async cfg => { await assert.rejects(createClient(validateConfig(cfg),'x')(`/api/companies/${companyId}/agents`,signal()), e => e.code==='invalid_response'); }); });
 test('hung HTTP aborted by deadline', async () => { await server(() => {}, async cfg => { await assert.rejects(createClient(validateConfig(cfg),'x')(`/api/companies/${companyId}/agents`,AbortSignal.timeout(50)), e => e.code==='timeout'); }); });
 test('tool denies owner/channel/spoofing before secret/network', async () => {
-  for (const extra of [{senderIsOwner:false}, {conversationReadOrigin:'delegated'}, {memoryAudience:{kind:'conversation'}}, {toolBindings:{}}, {assertInvocationCurrent:undefined}, {sandboxed:true}, {deliveryContext:{channel:'group',to:'group'}}]) {
+  // No tool binding is required: no existing caller (Telegram, CLI, gateway) provides a
+  // paperclip-status binding, so requiring one makes the tool unreachable. Host attestation
+  // (owner + direct-operator + owner-private audience + session + assert fns) is the gate.
+  // A binding, when present, must still match (see deliveryContext group case below).
+  // Origin 'delegated' is allowed: a CLI turn is 'delegated' with no memory audience
+  // (output goes to the owner's own terminal, inherently private). When an audience IS
+  // present it must be owner-private.
+  for (const extra of [{senderIsOwner:false}, {memoryAudience:{kind:'conversation'}}, {assertInvocationCurrent:undefined}, {sandboxed:true}, {deliveryContext:{channel:'group',to:'group'}}]) {
     let resolved=0; const ctx=context({...extra,resolveApiKeyForProvider:async()=>{resolved++;return 'x';}});
     assert.equal(admitted(ctx,companyId),false); assert.equal((await makeTool(ctx,c).execute('id',{})).details.error,'access_denied'); assert.equal(resolved,0);
   }
+  // A present-but-wrong binding still denies.
+  assert.equal(admitted(context({toolBindings:{'paperclip-status':{privateConversation:true,companyId,sessionId:'session',channel:'other',to:'owner'}}}),companyId),false);
+  // No binding at all is admitted when host attestation holds (the reachable path).
+  assert.equal(admitted(context({toolBindings:{}}),companyId),true);
+  // CLI-style turn (delegated origin, no memory audience, no delivery channel) is admitted:
+  // output goes to the owner's own terminal, inherently private.
+  assert.equal(admitted(context({conversationReadOrigin:'delegated', memoryAudience:undefined, assertMemoryAudienceCurrent:undefined, deliveryContext:undefined, toolBindings:{}}),companyId),true);
   assert.equal((await makeTool(context(),c).execute('id',{baseUrl:'evil',privateConversation:true})).details.error,'access_denied');
 });
 test('secret resolution failure redacted', async () => {
