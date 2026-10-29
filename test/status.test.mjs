@@ -17,8 +17,11 @@ function fixtures(path) {
   return [{ id: 'a', name: 'Engineer', status: 'active' }, { id: 'b', name: 'No cost record', status: 'paused' }];
 }
 const signal = () => AbortSignal.timeout(2000);
+function binding(extra = {}) {
+  return Object.freeze({ version: 1, kind: 'owner-dm', companyId, sessionId: 'session', sessionKey: 'host-session', channel: 'test-private', to: 'owner', assertCurrent: () => true, ...extra });
+}
 function context(extra = {}) {
-  return { senderIsOwner: true, conversationReadOrigin: 'direct-operator', memoryAudience: { kind: 'owner-private' }, assertMemoryAudienceCurrent() {}, assertInvocationCurrent() {}, sessionId: 'session', sessionKey: 'host-session', deliveryContext: { channel: 'test-private', to: 'owner' }, toolBindings: { 'paperclip-status': { privateConversation: true, companyId, sessionId: 'session', channel: 'test-private', to: 'owner' } }, resolveApiKeyForProvider: async () => 'synthetic-token', ...extra };
+  return { senderIsOwner: true, conversationReadOrigin: 'direct-operator', memoryAudience: { kind: 'owner-private' }, assertMemoryAudienceCurrent() {}, assertInvocationCurrent() {}, sessionId: 'session', sessionKey: 'host-session', deliveryContext: { channel: 'test-private', to: 'owner' }, toolBindings: { 'paperclip-status': binding() }, resolveApiKeyForProvider: async () => 'synthetic-token', ...extra };
 }
 async function server(handler, fn) {
   const s = http.createServer(handler); s.listen(0, '127.0.0.1'); await once(s, 'listening');
@@ -114,24 +117,13 @@ test('stream bytes bounded before JSON parse', async () => { await server((req,r
 test('malformed JSON and content type fail safe', async () => { for (const body of ['broken','<html>']) await server((req,res) => { if (body==='broken') res.setHeader('Content-Type','application/json'); res.end(body); }, async cfg => { await assert.rejects(createClient(validateConfig(cfg),'x')(`/api/companies/${companyId}/agents`,signal()), e => e.code==='invalid_response'); }); });
 test('hung HTTP aborted by deadline', async () => { await server(() => {}, async cfg => { await assert.rejects(createClient(validateConfig(cfg),'x')(`/api/companies/${companyId}/agents`,AbortSignal.timeout(50)), e => e.code==='timeout'); }); });
 test('tool denies owner/channel/spoofing before secret/network', async () => {
-  // No tool binding is required: no existing caller (Telegram, CLI, gateway) provides a
-  // paperclip-status binding, so requiring one makes the tool unreachable. Host attestation
-  // (owner + direct-operator + owner-private audience + session + assert fns) is the gate.
-  // A binding, when present, must still match (see deliveryContext group case below).
-  // Origin 'delegated' is allowed: a CLI turn is 'delegated' with no memory audience
-  // (output goes to the owner's own terminal, inherently private). When an audience IS
-  // present it must be owner-private.
   for (const extra of [{senderIsOwner:false}, {memoryAudience:{kind:'conversation'}}, {assertInvocationCurrent:undefined}, {sandboxed:true}, {deliveryContext:{channel:'group',to:'group'}}]) {
     let resolved=0; const ctx=context({...extra,resolveApiKeyForProvider:async()=>{resolved++;return 'x';}});
     assert.equal(admitted(ctx,companyId),false); assert.equal((await makeTool(ctx,c).execute('id',{})).details.error,'access_denied'); assert.equal(resolved,0);
   }
-  // A present-but-wrong binding still denies.
-  assert.equal(admitted(context({toolBindings:{'paperclip-status':{privateConversation:true,companyId,sessionId:'session',channel:'other',to:'owner'}}}),companyId),false);
-  // No binding at all is admitted when host attestation holds (the reachable path).
+  assert.equal(admitted(context({toolBindings:{'paperclip-status':binding({channel:'other'})}}),companyId),false);
   assert.equal(admitted(context({toolBindings:{}}),companyId),true);
-  // CLI-style turn (delegated origin, no memory audience, no delivery channel) is admitted:
-  // output goes to the owner's own terminal, inherently private.
-  assert.equal(admitted(context({conversationReadOrigin:'delegated', memoryAudience:undefined, assertMemoryAudienceCurrent:undefined, deliveryContext:undefined, toolBindings:{}}),companyId),true);
+  assert.equal(admitted(context({conversationReadOrigin:'delegated', memoryAudience:undefined, assertMemoryAudienceCurrent:undefined, deliveryContext:{channel:'group',to:'public-group'}, toolBindings:undefined}),companyId),false);
   assert.equal((await makeTool(context(),c).execute('id',{baseUrl:'evil',privateConversation:true})).details.error,'access_denied');
 });
 test('secret resolution failure redacted', async () => {
@@ -212,4 +204,37 @@ test('revocation after summary prevents dependent by-agent read', async () => {
     const result=await makeTool(context({assertInvocationCurrent(){if(!current)throw Error('revoked');}}),cfg).execute('id',{});
     assert.equal(result.details.error,'access_denied');
   }); assert.ok(!calls.some(p=>p.includes('costs/by-agent')));
+});
+
+// Owner decision 2026-10-29: absent receipts use strict owner authorization.
+test('option B: owner CLI without receipt succeeds through tool boundary', async () => {
+  let reads=0, secrets=0;
+  const ctx=context({oneShotCliRun:true, deliveryContext:undefined, memoryAudience:undefined,
+    assertMemoryAudienceCurrent:undefined, toolBindings:undefined,
+    resolveApiKeyForProvider:async()=>{secrets++;return 'synthetic-token';}});
+  assert.equal(admitted(ctx,companyId),true);
+  await server((req,res)=>{reads++;assert.equal(req.headers.authorization,'Bearer synthetic-token');json(res,fixtures(req.url));},async cfg=>{
+    const result=await makeTool(ctx,cfg).execute('id',{});
+    assert.ok(result.content[0].text.includes('COSTS'));assert.ok(result.content[0].text.includes('ACTIVITY'));
+    assert.equal(result.details.error,undefined);
+  });
+  assert.equal(secrets,1);assert.equal(reads,5);
+});
+test('option B: owner delegated group without receipt denies before secrets and HTTP', async () => {
+  for (const memoryAudience of [undefined,{kind:'owner-private'}]) {
+    let reads=0,secrets=0;
+    const ctx=context({conversationReadOrigin:'delegated', memoryAudience, toolBindings:undefined,
+      deliveryContext:{channel:'group',to:'public-group'},
+      resolveApiKeyForProvider:async()=>{secrets++;return 'synthetic-token';}});
+    await server((req,res)=>{reads++;json(res,fixtures(req.url));},async cfg=>{
+      assert.equal(admitted(ctx,companyId),false);
+      const result=await makeTool(ctx,cfg).execute('id',{});
+      assert.equal(result.details.error,'access_denied');assert.ok(!result.content[0].text.includes('COSTS'));
+    });
+    assert.equal(secrets,0);assert.equal(reads,0);
+  }
+});
+test('option B: valid supplied receipt retains admission',()=>{assert.equal(admitted(context(),companyId),true);});
+test('option B: absent receipt still requires host credential resolver',()=>{
+  assert.equal(admitted(context({toolBindings:undefined,resolveApiKeyForProvider:undefined}),companyId),false);
 });

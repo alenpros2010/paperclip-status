@@ -2,19 +2,24 @@ import http, { type RequestOptions } from 'node:http';
 import https from 'node:https';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { isAbsolute } from 'node:path';
 
 export type ErrorCode = 'auth' | 'rate_limit' | 'timeout' | 'network' | 'server' | 'invalid_response' | 'response_too_large' | 'destination_denied' | 'access_denied';
 export class StatusError extends Error { constructor(public code: ErrorCode, public retryAfterMs = 0) { super(code); } }
-export interface Config { baseUrl: string; companyId: string; credentialProvider: string; allowLoopbackDevelopment?: boolean; currency?: string; }
+export interface Config { baseUrl: string; companyId: string; credentialProvider: string; allowLoopbackDevelopment?: boolean; allowDevelopmentCredentialFallback?: boolean; developmentCredentialFile?: string; currency?: string; }
 export function validateConfig(value: unknown): Config {
   if (!value || typeof value !== 'object') throw new StatusError('destination_denied');
   const c = value as Config;
   if (typeof c.baseUrl !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.companyId) || typeof c.credentialProvider !== 'string' || !/^[a-zA-Z0-9_-]{1,80}$/.test(c.credentialProvider) || (c.currency !== undefined && !/^[A-Z]{3}$/.test(c.currency)) || (c.allowLoopbackDevelopment !== undefined && typeof c.allowLoopbackDevelopment !== 'boolean')) throw new StatusError('destination_denied');
+  if ((c.allowDevelopmentCredentialFallback !== undefined && typeof c.allowDevelopmentCredentialFallback !== 'boolean') ||
+      (c.developmentCredentialFile !== undefined && (typeof c.developmentCredentialFile !== 'string' || !isAbsolute(c.developmentCredentialFile))) ||
+      (c.allowDevelopmentCredentialFallback === true && (c.allowLoopbackDevelopment !== true || !c.developmentCredentialFile))) throw new StatusError('destination_denied');
   let u: URL; try { u = new URL(c.baseUrl); } catch { throw new StatusError('destination_denied'); }
   if (u.username || u.password || u.search || u.hash || u.pathname !== '/' || !['https:', 'http:'].includes(u.protocol)) throw new StatusError('destination_denied');
   const host = u.hostname.replace(/^\[|\]$/g, '');
   const loopback = ['127.0.0.1', '::1'].includes(host);
   if (u.protocol === 'http:' && !(loopback && c.allowLoopbackDevelopment === true)) throw new StatusError('destination_denied');
+  if (c.allowDevelopmentCredentialFallback === true && !loopback) throw new StatusError('destination_denied');
   if (isIP(host) && !publicAddress(host) && !(loopback && c.allowLoopbackDevelopment === true)) throw new StatusError('destination_denied');
   return Object.freeze({ ...c, baseUrl: u.origin });
 }
@@ -23,8 +28,19 @@ export function publicAddress(ip: string): boolean {
     const [a = 0, b = 0] = ip.split('.').map(Number);
     return !(a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && [0, 168].includes(b)) || (a === 198 && [18, 19, 51].includes(b)) || (a === 203 && b === 0));
   }
-  // Conservative: only global unicast 2000::/3, excluding documentation and mapped IPv4.
-  return isIP(ip) === 6 && /^[23]/.test(ip) && !/^2001:(0*db8|0*:)/i.test(ip) && !ip.includes('.');
+  // Conservative global-unicast policy. Parse hextets so zero padding/case and
+  // compression cannot bypass prefix checks (IANA special-use registry / RFC 9637).
+  if (isIP(ip) !== 6 || ip.includes('.') || ip.includes('%')) return false;
+  const parts = ip.toLowerCase().split('::');
+  const left = parts[0] ? parts[0].split(':') : [];
+  const right = parts[1] ? parts[1].split(':') : [];
+  const words = [...left, ...Array(parts.length === 2 ? 8 - left.length - right.length : 0).fill('0'), ...right].map(s => parseInt(s, 16));
+  const first = words[0]!, second = words[1]!;
+  if ((first & 0xe000) !== 0x2000) return false; // only 2000::/3; mapped/ULA/link-local/etc deny
+  if (first === 0x2001 && (second < 0x0200 || second === 0x0db8)) return false; // 2001::/23 protocol assignments + documentation
+  if (first === 0x2002) return false; // legacy 6to4 can embed private IPv4 destinations
+  if (first === 0x3fff && (second & 0xf000) === 0) return false; // 3fff::/20 documentation, RFC 9637
+  return true;
 }
 export function retryAfter(value: string | undefined, now = Date.now()): number {
   if (!value) return 250;

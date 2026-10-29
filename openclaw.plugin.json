@@ -13,6 +13,8 @@
       "companyId": {"type": "string", "format": "uuid"},
       "credentialProvider": {"type": "string", "minLength": 1},
       "allowLoopbackDevelopment": {"type": "boolean", "default": false},
+      "allowDevelopmentCredentialFallback": {"type": "boolean", "default": false},
+      "developmentCredentialFile": {"type": "string", "minLength": 1},
       "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}
     }
   }
