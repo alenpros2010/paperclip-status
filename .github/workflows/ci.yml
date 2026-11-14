@@ -22,6 +22,6 @@ jobs:
       - name: Install locked plugin dependencies
         run: npm ci --ignore-scripts --legacy-peer-deps
       - name: Install exact supported host SDK (no lifecycle scripts)
-        run: npm install --no-save --package-lock=false --ignore-scripts --legacy-peer-deps openclaw@2026.10.6
+        run: npm install --save-dev --package-lock=false --ignore-scripts --legacy-peer-deps openclaw@2026.10.6
       - run: npm run typecheck
       - run: npm test
