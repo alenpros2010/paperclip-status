@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paperclip Status — Giám sát hoạt động Agent Autonomous</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #0ea5e9;
+            --border: #334155;
+            --code-bg: #090d16;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+            color: var(--accent);
+        }
+        .tagline {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+        }
+        section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+        p, li {
+            margin-bottom: 0.75rem;
+            color: var(--text-muted);
+        }
+        strong {
+            color: var(--text-color);
+        }
+        ul {
+            padding-left: 1.5rem;
+        }
+        .features-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        @media(min-width: 600px) {
+            .features-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        .feature-item {
+            background: var(--bg-color);
+            padding: 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        .limitations-list li {
+            margin-bottom: 0.5rem;
+        }
+        .cta-links {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+        .btn {
+            background-color: var(--accent);
+            color: var(--bg-color);
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        .btn:hover {
+            background-color: var(--accent-hover);
+        }
+        footer {
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-top: 3rem;
+            border-top: 1px solid var(--border);
+            padding-top: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Section 1 -->
+        <header>
+            <h1>Paperclip Status</h1>
+            <p class="tagline">Giám sát trạng thái agent autonomous theo thời gian thực — chỉ đọc, không ghi, không phê duyệt thay bạn.</p>
+        </header>
+
+        <!-- Section 2 -->
+        <section>
+            <h2>Tool làm được gì</h2>
+            <div class="features-grid">
+                <div class="feature-item">
+                    <strong>1. Tổng quan</strong>
+                    <p>Trạng thái các agent: ai đang làm gì, idle hay lỗi.</p>
+                </div>
+                <div class="feature-item">
+                    <strong>2. Chi phí</strong>
+                    <p>Chi phí theo tháng (MTD, theo giờ UTC), có thể thiếu định giá.</p>
+                </div>
+                <div class="feature-item">
+                    <strong>3. Phê duyệt</strong>
+                    <p>Các phê duyệt đang chờ và đã xử lý.</p>
+                </div>
+                <div class="feature-item">
+                    <strong>4. Hoạt động</strong>
+                    <p>10 hoạt động gần nhất trên board.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3 -->
+        <section>
+            <h2>Cách cài đặt</h2>
+            <p>Plugin chạy trong OpenClaw, yêu cầu:</p>
+            <ul>
+                <li><strong>OpenClaw:</strong> phiên bản 2026.10.6 trở lên.</li>
+                <li><strong>Node.js:</strong> phiên bản 24.22.1+.</li>
+            </ul>
+            <p>Xem hướng dẫn cài đặt đầy đủ trong README của repo.</p>
+        </section>
+
+        <!-- Section 4 -->
+        <section>
+            <h2>Giới hạn nói thẳng</h2>
+            <ul class="limitations-list">
+                <li><strong>Latest run:</strong> run mới nhất có thể hiển thị unknown (chưa hỗ trợ).</li>
+                <li><strong>Costs:</strong> chi phí là MTD theo UTC, có thể thiếu định giá.</li>
+                <li><strong>Activity:</strong> tối đa 10 mục gần nhất, không phải lịch sử đầy đủ.</li>
+                <li><strong>Approvals:</strong> danh sách phê duyệt trống không chứng minh toàn công ty hết việc chờ.</li>
+            </ul>
+        </section>
+
+        <!-- Section 5 -->
+        <section>
+            <h2>Liên kết &amp; Tài nguyên</h2>
+            <p>Khám phá mã nguồn và theo dõi thông tin chi tiết về sản phẩm tại kênh chính thức:</p>
+            <div class="cta-links">
+                <a href="https://github.com/alenpros2010/paperclip-status" class="btn" target="_blank" rel="noopener">GitHub Repository</a>
+            </div>
+            <p>Bài viết ra mắt đang được hoàn thiện trong chiến dịch launch — link sẽ cập nhật sau khi đăng.</p>
+        </section>
+
+        <!-- Section 6 -->
+        <section>
+            <h2>Ghi chú phiên bản v1.1</h2>
+            <p>Cập nhật ổn định định hướng sản xuất (PR #3, đã merge 29/10):</p>
+            <ul>
+                <li>Đã vượt qua và duy trì <strong>217 automated tests</strong> thành công.</li>
+                <li>Hệ thống CI hoàn toàn xanh (Green build), đảm bảo tính toàn vẹn mã nguồn trước khi deploy.</li>
+                <li>Tối ưu hóa hiệu năng giao diện tĩnh, không phụ thuộc framework bên thứ ba và không đính kèm mã tracking.</li>
+            </ul>
+        </section>
+
+        <footer>
+            <p>&copy; 2026 Paperclip Status Project. Licensed under MIT.</p>
+        </footer>
+    </div>
+</body>
+</html>
